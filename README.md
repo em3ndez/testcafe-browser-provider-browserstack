@@ -1,6 +1,6 @@
 # testcafe-browser-provider-browserstack
 
-[![Build Status](https://travis-ci.org/DevExpress/testcafe-browser-provider-browserstack.svg)](https://travis-ci.org/DevExpress/testcafe-browser-provider-browserstack)
+[![Tests](https://github.com/DevExpress/testcafe-browser-provider-browserstack/actions/workflows/test.yml/badge.svg)](https://github.com/DevExpress/testcafe-browser-provider-browserstack/actions/workflows/test.yml)
 
 This plugin integrates [TestCafe](http://devexpress.github.io/testcafe) with the [BrowserStack Testing Cloud](https://browserstack.com/).
 
@@ -146,7 +146,7 @@ To specify BrowserStack capabilities via the TestCafe BrowserStack provider, use
 Capability                    | Environment Variable
 ----------------------------- | ---------------------------------
 `project`                     | `BROWSERSTACK_PROJECT_NAME`
-`build`                       | `BROWSERSTACK_BUILD_ID`
+`build`                       | `BROWSERSTACK_BUILD_ID` (`BROWSERSTACK_BUILD_NAME` may also be used)
 `resolution`                  | `BROWSERSTACK_DISPLAY_RESOLUTION`
 `name`                        | `BROWSERSTACK_TEST_RUN_NAME`
 `acceptSslCerts`              | `BROWSERSTACK_ACCEPT_SSL_CERTS`

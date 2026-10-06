@@ -1,11 +1,10 @@
 import { inspect } from 'util';
-import jimp from 'jimp';
 import BaseBackend from './base';
 import requestApiBase from '../utils/request-api';
 import createBrowserstackStatus from '../utils/create-browserstack-status';
 import getAPIPollingInterval from '../utils/get-api-polling-interval';
 import * as ERROR_MESSAGES from '../templates/error-messages';
-
+import sharp from 'sharp';
 
 const API_POLLING_INTERVAL = getAPIPollingInterval();
 
@@ -109,10 +108,10 @@ export default class AutomateBackend extends BaseBackend {
         }
     }
 
-    async _requestSessionUrl (id) {
+    async _requestSessionInfo (id) {
         var sessionInfo = await requestApiBase(BROWSERSTACK_API_PATHS.getStatus(this.sessions[id].sessionId));
 
-        return sessionInfo['automation_session']['browser_url'];
+        return sessionInfo['automation_session'];
     }
 
     async _requestCurrentWindowSize (id) {
@@ -134,6 +133,13 @@ export default class AutomateBackend extends BaseBackend {
         return this.sessions[id] ? this.sessions[id].sessionUrl : '';
     }
 
+    async getOSInfo (id) {
+        if (this.sessions[id])
+            return this.sessions[id].osInfo;
+
+        return null;
+    }
+
     async openBrowser (id, pageUrl, capabilities) {
         var { localIdentifier, local, ...restCapabilities } = capabilities;
 
@@ -145,17 +151,22 @@ export default class AutomateBackend extends BaseBackend {
 
         this.sessions[id] = await requestApi(BROWSERSTACK_API_PATHS.newSession, {
             body: { desiredCapabilities: capabilities },
-
-            executeImmediately: true
         });
 
         AutomateBackend._ensureSessionId(this.sessions[id]);
 
-        this.sessions[id].sessionUrl = await this._requestSessionUrl(id);
+        const sessionInfo = await this._requestSessionInfo(id);
+        const osInfo      = {
+            name:    sessionInfo['os'] || '',
+            version: sessionInfo['os_version'] || ''
+        };
+
+        this.sessions[id].sessionUrl = sessionInfo['browser_url'];
+        this.sessions[id].osInfo     = osInfo;
 
         var sessionId = this.sessions[id].sessionId;
 
-        this.sessions[id].interval = setInterval(() => requestApi(BROWSERSTACK_API_PATHS.getUrl(sessionId), { executeImmediately: true }), API_POLLING_INTERVAL);
+        this.sessions[id].interval = setInterval(() => requestApi(BROWSERSTACK_API_PATHS.getUrl(sessionId)), API_POLLING_INTERVAL);
 
         await requestApi(BROWSERSTACK_API_PATHS.openUrl(sessionId), { body: { url: pageUrl } });
     }
@@ -176,12 +187,10 @@ export default class AutomateBackend extends BaseBackend {
     }
 
     async takeScreenshot (id, screenshotPath) {
-        var base64Data = await requestApi(BROWSERSTACK_API_PATHS.screenshot(this.sessions[id].sessionId));
-        var buffer     = Buffer.from(base64Data.value, 'base64');
+        var base64Data  = await requestApi(BROWSERSTACK_API_PATHS.screenshot(this.sessions[id].sessionId));
+        var buffer      = Buffer.from(base64Data.value, 'base64');
 
-        const image = await jimp.read(buffer);
-
-        await image.writeAsync(screenshotPath);
+        await sharp(buffer).toFile(screenshotPath);
     }
 
     async resizeWindow (id, width, height, currentWidth, currentHeight) {

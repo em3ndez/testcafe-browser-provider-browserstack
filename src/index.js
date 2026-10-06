@@ -65,11 +65,11 @@ module.exports = {
         return this.connectorPromise;
     },
 
-    _getBrowserProxy (host, port) {
+    _getBrowserProxy (protocol, host, port) {
         this.browserProxyPromise = this.browserProxyPromise
             .then(async browserProxy => {
                 if (!browserProxy) {
-                    browserProxy = new BrowserProxy(host, port, { responseDelay: ANDROID_PROXY_RESPONSE_DELAY });
+                    browserProxy = new BrowserProxy(host, port, { targetProtocol: protocol, responseDelay: ANDROID_PROXY_RESPONSE_DELAY });
 
                     await browserProxy.init();
                 }
@@ -120,7 +120,7 @@ module.exports = {
         // For the full list of capabilities, see https://www.browserstack.com/automate/capabilities
 
         return {
-            'build':                       process.env['BROWSERSTACK_BUILD_ID'],
+            'build':                       process.env['BROWSERSTACK_BUILD_ID'] || process.env['BROWSERSTACK_BUILD_NAME'],
             'project':                     process.env['BROWSERSTACK_PROJECT_NAME'],
             'resolution':                  process.env['BROWSERSTACK_DISPLAY_RESOLUTION'],
             'name':                        process.env['BROWSERSTACK_TEST_RUN_NAME'],
@@ -152,7 +152,7 @@ module.exports = {
     },
 
     _filterPlatformInfo (query) {
-        return this.platformsInfo
+        let filteredPlatformInfo = this.platformsInfo
             .filter(info => {
                 var browserNameMatched = info['browser'] && info['browser'].toLowerCase() === query.name;
                 var deviceNameMatched  = info['device'] && info['device'].toLowerCase() === query.name;
@@ -166,14 +166,24 @@ module.exports = {
                 var isAnyPlatform = query.platform === 'any';
 
                 var desktopBrowserMatched = browserNameMatched &&
-                    (browserVersionMatched || isAnyVersion) &&
-                    (platformNameMatched || isAnyPlatform);
+                                            (browserVersionMatched || isAnyVersion) &&
+                                            (platformNameMatched || isAnyPlatform);
 
                 var mobileBrowserMatched = deviceNameMatched &&
-                    (platformVersionMatched || isAnyVersion);
+                                           (platformVersionMatched || isAnyVersion);
 
                 return desktopBrowserMatched || mobileBrowserMatched;
             });
+
+        if (filteredPlatformInfo.length && query.version === 'any') {
+            filteredPlatformInfo = filteredPlatformInfo.filter(info => {
+                const browserVersion = info['browser_version'] || '';
+
+                return !browserVersion.includes('beta');
+            });
+        }
+
+        return filteredPlatformInfo;
     },
 
     _generateBrowserNames () {
@@ -227,7 +237,7 @@ module.exports = {
             ...this._getAdditionalCapabilities()
         };
 
-        capabilities.local           = isLocalEnabled();
+        capabilities.local = isLocalEnabled();
 
         // Give preference to the already running local identifier
         capabilities.localIdentifier = process.env.BROWSERSTACK_LOCAL_IDENTIFIER;
@@ -240,7 +250,7 @@ module.exports = {
 
         if (capabilities.os.toLowerCase() === 'android') {
             const parsedPageUrl = parseUrl(pageUrl);
-            const browserProxy  = await this._getBrowserProxy(parsedPageUrl.hostname, parsedPageUrl.port);
+            const browserProxy  = await this._getBrowserProxy(parsedPageUrl.protocol, parsedPageUrl.hostname, parsedPageUrl.port);
 
             pageUrl = 'http://' + browserProxy.targetHost + ':' + browserProxy.proxyPort + parsedPageUrl.path;
         }
@@ -307,5 +317,9 @@ module.exports = {
 
     async reportJobResult (id, jobResult, jobData) {
         await this.backend.reportJobResult(id, jobResult, jobData, this.JOB_RESULT);
+    },
+
+    async getOSInfo (id) {
+        return await this.backend.getOSInfo(id);
     }
 };
